@@ -1,3 +1,3 @@
-module github.com/pixiv/go-libjpeg
+module github.com/dunv/go-libjpeg
 
 go 1.19
