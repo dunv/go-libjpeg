@@ -52,7 +52,7 @@ func BenchmarkDecode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, file := range naturalImageFiles {
 			io := util.OpenFile(file)
-			img, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
+			img, _, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
 			if img == nil {
 				b.Error("Got nil")
 			}
@@ -98,7 +98,7 @@ func TestDecode(t *testing.T) {
 		io := util.OpenFile(file)
 		fmt.Printf(" - test: %s\n", file)
 
-		img, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
+		img, _, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
 		if err != nil {
 			t.Errorf("Got Error: %v", err)
 		}
@@ -112,7 +112,7 @@ func TestDecodeScaled(t *testing.T) {
 		io := util.OpenFile(file)
 		fmt.Printf(" - test: %s\n", file)
 
-		img, err := jpeg.Decode(io, &jpeg.DecoderOptions{ScaleTarget: image.Rect(0, 0, 100, 100)})
+		img, _, err := jpeg.Decode(io, &jpeg.DecoderOptions{ScaleTarget: image.Rect(0, 0, 100, 100)})
 		if err != nil {
 			t.Errorf("Got Error: %v", err)
 		}
@@ -196,7 +196,7 @@ func TestDecodeSubsampledImage(t *testing.T) {
 		io := util.OpenFile(file)
 		fmt.Printf(" - test: %s\n", file)
 
-		img, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
+		img, _, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
 		if err != nil {
 			t.Errorf("Got Error: %v", err)
 		}
@@ -210,7 +210,7 @@ func TestDecodeAndEncode(t *testing.T) {
 		io := util.OpenFile(file)
 		fmt.Printf(" - test: %s\n", file)
 
-		img, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
+		img, _, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
 		if err != nil {
 			t.Errorf("Decode returns error: %v", err)
 		}
@@ -237,7 +237,7 @@ func TestDecodeAndEncodeSubsampledImages(t *testing.T) {
 		r := util.OpenFile(file)
 		fmt.Printf(" - test: %s\n", file)
 
-		img, err := jpeg.Decode(r, &jpeg.DecoderOptions{})
+		img, _, err := jpeg.Decode(r, &jpeg.DecoderOptions{})
 		if err != nil {
 			t.Errorf("Decode returns error: %v", err)
 		}
@@ -289,7 +289,7 @@ func TestEncodeGrayImage(t *testing.T) {
 	f.Seek(0, 0)
 
 	// decode file
-	decoded, err := jpeg.Decode(f, &jpeg.DecoderOptions{})
+	decoded, _, err := jpeg.Decode(f, &jpeg.DecoderOptions{})
 	if err != nil {
 		t.Errorf("Decode returns error: %v", err)
 	}
@@ -368,7 +368,7 @@ func TestNewYCbCrAlignedWithPortrait(t *testing.T) {
 
 func TestDecodeFailsWithBlankFile(t *testing.T) {
 	blank := bytes.NewBuffer(nil)
-	_, err := jpeg.Decode(blank, &jpeg.DecoderOptions{})
+	_, _, err := jpeg.Decode(blank, &jpeg.DecoderOptions{})
 	if err == nil {
 		t.Errorf("got no error with blank file")
 	}
@@ -407,7 +407,7 @@ func TestEncodeRGBA(t *testing.T) {
 		t.Fatalf("failed to encode: %v", err)
 	}
 
-	decoded, err := jpeg.Decode(w, &jpeg.DecoderOptions{})
+	decoded, _, err := jpeg.Decode(w, &jpeg.DecoderOptions{})
 	if err != nil {
 		t.Fatalf("failed to decode: %v", err)
 	}

@@ -72,7 +72,7 @@ func TestDecodeTestdataFromGoStdlib(t *testing.T) {
 Loop:
 	for _, it := range imageTests {
 		io := util.OpenFile(it.filename)
-		img, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
+		img, _, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
 		if err != nil {
 			t.Errorf("%s: %v", it.filename, err)
 			continue

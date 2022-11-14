@@ -8,6 +8,7 @@ package jpeg
 #include "jpeg.h"
 
 void error_panic(j_common_ptr dinfo);
+extern void custom_emit_message(j_common_ptr cinfo, int msg_level);
 
 static struct jpeg_decompress_struct *new_decompress(void) {
 	struct jpeg_decompress_struct *dinfo = (struct jpeg_decompress_struct *)calloc(sizeof(struct jpeg_decompress_struct), 1);
@@ -31,6 +32,11 @@ static struct jpeg_decompress_struct *new_decompress(void) {
 	jpeg_create_decompress(dinfo);
 
 	return dinfo;
+}
+
+static void forward_format_output(j_common_ptr cinfo, char *buffer) {
+  	struct jpeg_error_mgr *err = cinfo->err;
+    (*err->format_message) (cinfo, buffer);
 }
 
 static int start_decompress(j_decompress_ptr dinfo)
@@ -149,6 +155,7 @@ static JDIMENSION read_mcu_ycbcr(struct jpeg_decompress_struct *dinfo, JSAMPROW 
 	return jpeg_read_raw_data(dinfo, image, imcu_rows);
 }
 
+
 */
 import "C"
 
@@ -158,16 +165,51 @@ import (
 	"image"
 	"image/color"
 	"io"
+	"os"
 	"unsafe"
 
 	"github.com/pixiv/go-libjpeg/rgb"
 )
+
+//export custom_emit_message
+func custom_emit_message(cinfo C.j_common_ptr, msgLevel C.int) {
+	// msg_level is -1 for warnings,
+	// 0 and up for trace messages.
+	err := cinfo.err
+
+	if msgLevel < 0 {
+		if err.num_warnings == 0 || err.trace_level >= 3 {
+			err.num_warnings++
+
+			if warningOutput != nil {
+				buf := make([]C.char, 256)
+				C.forward_format_output(cinfo, &buf[0])
+				(warningOutput).Write([]byte(C.GoString(&buf[0])))
+			}
+
+		}
+		return
+	}
+
+	if err.trace_level >= msgLevel {
+		buf := make([]C.char, 256)
+		C.forward_format_output(cinfo, &buf[0])
+		(warningOutput).Write([]byte(C.GoString(&buf[0])))
+	}
+}
+
+var warningOutput io.Writer = os.Stdout
+
+func SetWarningOutput(w io.Writer) {
+	warningOutput = w
+}
 
 func newDecompress(r io.Reader) *C.struct_jpeg_decompress_struct {
 	dinfo := C.new_decompress()
 	if dinfo == nil {
 		return nil
 	}
+
 	makeSourceManager(r, dinfo)
 	return dinfo
 }
@@ -241,6 +283,10 @@ type DecoderOptions struct {
 	DisableBlockSmoothing  bool            // If true, disable block smoothing
 }
 
+type ErrMgr struct {
+	NumWarnings int
+}
+
 // SupportRGBA returns whether RGBA decoding is supported.
 func SupportRGBA() bool {
 	if getJCS_EXT_RGBA() == C.JCS_UNKNOWN {
@@ -251,16 +297,18 @@ func SupportRGBA() bool {
 
 // Decode reads a JPEG data stream from r and returns decoded image as an image.Image.
 // Output image has YCbCr colors or 8bit Grayscale.
-func Decode(r io.Reader, options *DecoderOptions) (dest image.Image, err error) {
+func Decode(r io.Reader, options *DecoderOptions) (dest image.Image, errMgr ErrMgr, err error) {
 	dinfo := newDecompress(r)
 	if dinfo == nil {
-		return nil, errors.New("allocation failed")
+		return nil, ErrMgr{}, errors.New("allocation failed")
 	}
 	defer destroyDecompress(dinfo)
 
+	dinfo.err.emit_message = (*[0]byte)(C.custom_emit_message)
+
 	err = readHeader(dinfo)
 	if err != nil {
-		return nil, err
+		return nil, ErrMgr{}, err
 	}
 
 	setupDecoderOptions(dinfo, options)
@@ -268,7 +316,7 @@ func Decode(r io.Reader, options *DecoderOptions) (dest image.Image, err error) 
 	switch dinfo.num_components {
 	case 1:
 		if dinfo.jpeg_color_space != C.JCS_GRAYSCALE {
-			return nil, errors.New("unsupported colorspace")
+			return nil, ErrMgr{}, errors.New("unsupported colorspace")
 		}
 		dest, err = decodeGray(dinfo)
 	case 3:
@@ -276,13 +324,20 @@ func Decode(r io.Reader, options *DecoderOptions) (dest image.Image, err error) 
 		case C.JCS_YCbCr:
 			dest, err = decodeYCbCr(dinfo)
 		case C.JCS_RGB:
+			fmt.Println("decoding rgb")
 			dest, err = decodeRGB(dinfo)
 		default:
-			return nil, errors.New("unsupported colorspace")
+			return nil, ErrMgr{}, errors.New("unsupported colorspace")
 		}
 	default:
-		return nil, fmt.Errorf("unsupported number of components: %d", dinfo.num_components)
+		return nil, ErrMgr{}, fmt.Errorf("unsupported number of components: %d", dinfo.num_components)
 	}
+
+	// fmt.Println("dinfo.err.num_warnings", dinfo.err.num_warnings)
+	errMgr = ErrMgr{
+		NumWarnings: int(dinfo.err.num_warnings),
+	}
+
 	return
 }
 

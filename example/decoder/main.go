@@ -18,7 +18,7 @@ func main() {
 		log.Fatalln("Can't open file: ", file)
 	}
 
-	img, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
+	img, _, err := jpeg.Decode(io, &jpeg.DecoderOptions{})
 	if img == nil {
 		log.Fatalln("Got nil")
 	}
